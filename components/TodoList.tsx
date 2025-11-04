@@ -1,17 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-// Load todos from localStorage when component mounts
-useEffect(() => {
-  const savedTodos = localStorage.getItem('todos');
-  if (savedTodos) {
-    setTodos(JSON.parse(savedTodos));
-  }
-}, []);
-// Save todos to localStorage whenever they change
-useEffect(() => {
-  localStorage.setItem('todos', JSON.stringify(todos));
-}, [todos]);
 
 // Define what a Todo item looks like
 type Todo = {
@@ -23,8 +12,19 @@ type Todo = {
 export default function TodoList() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [inputText, setInputText] = useState('');
-  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all'); // MOVED HERE
+  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all'); 
 
+  
+  useEffect(() => {
+    const savedTodos = localStorage.getItem('todos');
+    if (savedTodos) {
+      setTodos(JSON.parse(savedTodos));
+    }
+  }, []);
+  // Save todos to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('todos', JSON.stringify(todos));
+  }, [todos]);
   // Add a new todo
   const addTodo = () => {
     if (inputText.trim() === '') return;
