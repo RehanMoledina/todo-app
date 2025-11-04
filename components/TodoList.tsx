@@ -12,26 +12,42 @@ type Todo = {
 export default function TodoList() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [inputText, setInputText] = useState('');
-  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all'); 
+  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingText, setEditingText] = useState('');
+  const clearCompleted = () => {setTodos(todos.filter(todo => !todo.completed));
+  };
 
-  
+  // Load todos from localStorage when component mounts
   useEffect(() => {
     const savedTodos = localStorage.getItem('todos');
     if (savedTodos) {
       setTodos(JSON.parse(savedTodos));
     }
   }, []);
+
   // Save todos to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('todos', JSON.stringify(todos));
   }, [todos]);
+
   // Add a new todo
   const addTodo = () => {
-    if (inputText.trim() === '') return;
+    const trimmedText = inputText.trim();
+    
+    if (trimmedText === '') {
+      alert('Please enter a task!');
+      return;
+    }
+    
+    if (trimmedText.length > 100) {
+      alert('Task is too long! Keep it under 100 characters.');
+      return;
+    }
     
     const newTodo: Todo = {
       id: Date.now(),
-      text: inputText,
+      text: trimmedText,
       completed: false,
     };
     
@@ -51,6 +67,35 @@ export default function TodoList() {
         todo.id === id ? { ...todo, completed: !todo.completed } : todo
       )
     );
+  };
+  
+  // Begin editing a todo
+  const startEdit = (id: number, currentText: string) => {
+    setEditingId(id);
+    setEditingText(currentText);
+  };
+
+  // Cancel editing
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingText('');
+  };
+
+  // Save edited text
+  const saveEdit = () => {
+    if (editingId === null) return;
+    const trimmed = editingText.trim();
+    if (trimmed === '') {
+      alert('Please enter a task!');
+      return;
+    }
+    if (trimmed.length > 100) {
+      alert('Task is too long! Keep it under 100 characters.');
+      return;
+    }
+    setTodos(todos.map(t => (t.id === editingId ? { ...t, text: trimmed } : t)));
+    setEditingId(null);
+    setEditingText('');
   };
   
   // Filter todos based on selected filter
@@ -140,25 +185,64 @@ export default function TodoList() {
                 onChange={() => toggleTodo(todo.id)}
                 className="w-5 h-5 text-purple-600 rounded cursor-pointer"
               />
-              
-              {/* Todo Text */}
-              <span
-                className={`flex-1 text-lg ${
-                  todo.completed
-                    ? 'line-through text-gray-400'
-                    : 'text-gray-700'
-                }`}
-              >
-                {todo.text}
-              </span>
-              
-              {/* Delete Button */}
-              <button
-                onClick={() => deleteTodo(todo.id)}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 active:bg-red-700 transition-colors"
-              >
-                Delete
-              </button>
+
+              {/* Todo Text or Edit Field */}
+              {editingId === todo.id ? (
+                <input
+                  type="text"
+                  value={editingText}
+                  onChange={(e) => setEditingText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') saveEdit();
+                    if (e.key === 'Escape') cancelEdit();
+                  }}
+                  className="flex-1 px-3 py-2 border-2 border-purple-300 rounded-lg focus:border-purple-500 focus:outline-none text-gray-700"
+                  autoFocus
+                />
+              ) : (
+                <span
+                  className={`flex-1 text-lg ${
+                    todo.completed
+                      ? 'line-through text-gray-400'
+                      : 'text-gray-700'
+                  }`}
+                >
+                  {todo.text}
+                </span>
+              )}
+
+              {/* Action Buttons */}
+              {editingId === todo.id ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={saveEdit}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 transition-colors"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={cancelEdit}
+                    className="px-4 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => startEdit(todo.id, todo.text)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => deleteTodo(todo.id)}
+                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 active:bg-red-700 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
             </div>
           ))
         )}
@@ -170,6 +254,15 @@ export default function TodoList() {
           {todos.filter(todo => !todo.completed).length} tasks remaining
         </div>
       )}
+      {todos.some(todo => todo.completed) && (
+        <button 
+          onClick={clearCompleted}
+          className="w-full mt-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+        >
+          Clear Completed
+        </button>
+      )}
+
     </div>
   );
 }
