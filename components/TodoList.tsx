@@ -1,6 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+// Load todos from localStorage when component mounts
+useEffect(() => {
+  const savedTodos = localStorage.getItem('todos');
+  if (savedTodos) {
+    setTodos(JSON.parse(savedTodos));
+  }
+}, []);
+// Save todos to localStorage whenever they change
+useEffect(() => {
+  localStorage.setItem('todos', JSON.stringify(todos));
+}, [todos]);
 
 // Define what a Todo item looks like
 type Todo = {
