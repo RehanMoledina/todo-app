@@ -7,22 +7,34 @@ type Todo = {
   id: number;
   text: string;
   completed: boolean;
+  dueAt?: string; // ISO string
 };
 
 export default function TodoList() {
   const [todos, setTodos] = useState<Todo[]>([]);
+  const [archivedTodos, setArchivedTodos] = useState<Todo[]>([]);
   const [inputText, setInputText] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingText, setEditingText] = useState('');
-  const clearCompleted = () => {setTodos(todos.filter(todo => !todo.completed));
+  const [inputDueDate, setInputDueDate] = useState(''); // yyyy-mm-dd
+  const [inputDueTime, setInputDueTime] = useState(''); // HH:mm
+  const clearCompleted = () => {
+    const completed = todos.filter(todo => todo.completed);
+    if (completed.length === 0) return;
+    setArchivedTodos([...archivedTodos, ...completed]);
+    setTodos(todos.filter(todo => !todo.completed));
   };
 
   // Load todos from localStorage when component mounts
   useEffect(() => {
     const savedTodos = localStorage.getItem('todos');
+    const savedArchived = localStorage.getItem('archivedTodos');
     if (savedTodos) {
       setTodos(JSON.parse(savedTodos));
+    }
+    if (savedArchived) {
+      setArchivedTodos(JSON.parse(savedArchived));
     }
   }, []);
 
@@ -30,6 +42,10 @@ export default function TodoList() {
   useEffect(() => {
     localStorage.setItem('todos', JSON.stringify(todos));
   }, [todos]);
+
+  useEffect(() => {
+    localStorage.setItem('archivedTodos', JSON.stringify(archivedTodos));
+  }, [archivedTodos]);
 
   // Add a new todo
   const addTodo = () => {
@@ -44,15 +60,27 @@ export default function TodoList() {
       alert('Task is too long! Keep it under 100 characters.');
       return;
     }
-    
+    // Build due date/time if provided
+    let dueAt: string | undefined;
+    if (inputDueDate) {
+      const time = inputDueTime || '23:59';
+      const candidate = new Date(`${inputDueDate}T${time}:00`);
+      if (!isNaN(candidate.getTime())) {
+        dueAt = candidate.toISOString();
+      }
+    }
+
     const newTodo: Todo = {
       id: Date.now(),
       text: trimmedText,
       completed: false,
+      dueAt,
     };
     
     setTodos([...todos, newTodo]);
     setInputText('');
+    setInputDueDate('');
+    setInputDueTime('');
   };
 
   // Delete a todo
@@ -67,6 +95,18 @@ export default function TodoList() {
         todo.id === id ? { ...todo, completed: !todo.completed } : todo
       )
     );
+  };
+
+  // Archived actions
+  const restoreArchived = (id: number) => {
+    const item = archivedTodos.find(t => t.id === id);
+    if (!item) return;
+    setArchivedTodos(archivedTodos.filter(t => t.id !== id));
+    setTodos([...todos, { ...item, completed: false }]);
+  };
+
+  const deleteArchived = (id: number) => {
+    setArchivedTodos(archivedTodos.filter(t => t.id !== id));
   };
   
   // Begin editing a todo
@@ -110,21 +150,43 @@ export default function TodoList() {
     }
   };
 
+  const formatDue = (iso?: string) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString(undefined, {
+      year: 'numeric', month: 'short', day: '2-digit',
+      hour: '2-digit', minute: '2-digit'
+    });
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 font-sans text-black">
       {/* Input Section */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2 items-center">
         <input
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && addTodo()}
-          placeholder="What needs to be done?"
-          className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none text-gray-700"
+          placeholder="What needs to be done? ✍️"
+          className="flex-1 px-4 py-3 rounded-xl border border-white/40 bg-white/30 text-black placeholder-black/50 focus:outline-none focus:ring-4 focus:ring-white/30"
+        />
+        <input
+          type="date"
+          value={inputDueDate}
+          onChange={(e) => setInputDueDate(e.target.value)}
+          className="px-3 py-3 rounded-xl border border-white/40 bg-white/30 text-black focus:outline-none focus:ring-4 focus:ring-white/30"
+        />
+        <input
+          type="time"
+          value={inputDueTime}
+          onChange={(e) => setInputDueTime(e.target.value)}
+          className="px-3 py-3 rounded-xl border border-white/40 bg-white/30 text-black focus:outline-none focus:ring-4 focus:ring-white/30"
         />
         <button
           onClick={addTodo}
-          className="px-6 py-3 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 active:bg-purple-800 transition-colors"
+          className="px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black font-semibold shadow-[0_8px_20px_rgba(217,70,239,0.35)] hover:from-cyan-300 hover:to-fuchsia-400 transition-colors"
         >
           Add
         </button>
@@ -135,30 +197,30 @@ export default function TodoList() {
         <div className="flex gap-2 justify-center">
           <button
             onClick={() => setFilter('all')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-4 py-2 rounded-full font-medium transition ${
               filter === 'all'
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-white/30 text-black shadow border border-white/40'
+                : 'bg-white/20 text-black/70 hover:bg-white/25 border border-white/30'
             }`}
           >
             All ({todos.length})
           </button>
           <button
             onClick={() => setFilter('active')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-4 py-2 rounded-full font-medium transition ${
               filter === 'active'
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-white/30 text-black shadow border border-white/40'
+                : 'bg-white/20 text-black/70 hover:bg-white/25 border border-white/30'
             }`}
           >
             Active ({todos.filter(t => !t.completed).length})
           </button>
           <button
             onClick={() => setFilter('completed')}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`px-4 py-2 rounded-full font-medium transition ${
               filter === 'completed'
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-white/30 text-black shadow border border-white/40'
+                : 'bg-white/20 text-black/70 hover:bg-white/25 border border-white/30'
             }`}
           >
             Completed ({todos.filter(t => t.completed).length})
@@ -169,21 +231,21 @@ export default function TodoList() {
       {/* Todo List */}
       <div className="space-y-2">
         {todos.length === 0 ? (
-          <p className="text-center text-gray-400 py-8">
+          <p className="text-center text-black/50 py-8">
             No tasks yet. Add one above!
           </p>
         ) : (
           getFilteredTodos().map((todo) => (
             <div
               key={todo.id}
-              className="flex items-center gap-3 bg-gray-50 p-4 rounded-lg hover:bg-gray-100 transition-colors"
+              className="flex items-center gap-3 p-4 rounded-2xl border border-white/30 bg-white/15 hover:bg-white/25 transition-colors backdrop-blur-xl"
             >
               {/* Checkbox */}
               <input
                 type="checkbox"
                 checked={todo.completed}
                 onChange={() => toggleTodo(todo.id)}
-                className="w-5 h-5 text-purple-600 rounded cursor-pointer"
+                className="w-5 h-5 rounded cursor-pointer accent-fuchsia-500"
               />
 
               {/* Todo Text or Edit Field */}
@@ -196,19 +258,30 @@ export default function TodoList() {
                     if (e.key === 'Enter') saveEdit();
                     if (e.key === 'Escape') cancelEdit();
                   }}
-                  className="flex-1 px-3 py-2 border-2 border-purple-300 rounded-lg focus:border-purple-500 focus:outline-none text-gray-700"
+                  className="flex-1 px-3 py-2 rounded-xl border border-white/40 bg-white/30 text-black focus:outline-none focus:ring-4 focus:ring-white/30"
                   autoFocus
                 />
               ) : (
-                <span
-                  className={`flex-1 text-lg ${
-                    todo.completed
-                      ? 'line-through text-gray-400'
-                      : 'text-gray-700'
-                  }`}
-                >
-                  {todo.text}
-                </span>
+                <div className="flex-1">
+                  <div
+                    className={`text-lg ${
+                      todo.completed
+                        ? 'line-through text-black/40'
+                        : 'text-black'
+                    }`}
+                  >
+                    {todo.text}
+                  </div>
+                  {todo.dueAt && (
+                    <div className={`text-sm ${
+                      !todo.completed && new Date(todo.dueAt).getTime() < Date.now()
+                        ? 'text-pink-600'
+                        : 'text-black/50'
+                    }`}>
+                      Due: {formatDue(todo.dueAt)}
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Action Buttons */}
@@ -216,13 +289,13 @@ export default function TodoList() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={saveEdit}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 active:bg-green-800 transition-colors"
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black font-semibold shadow hover:from-cyan-300 hover:to-fuchsia-400 transition-colors"
                   >
                     Save
                   </button>
                   <button
                     onClick={cancelEdit}
-                    className="px-4 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition-colors"
+                    className="px-4 py-2 rounded-xl bg-white/20 text-black hover:bg-white/30 transition-colors border border-white/30"
                   >
                     Cancel
                   </button>
@@ -231,13 +304,13 @@ export default function TodoList() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => startEdit(todo.id, todo.text)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 active:bg-blue-800 transition-colors"
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black font-semibold shadow hover:from-cyan-300 hover:to-fuchsia-400 transition-colors"
                   >
                     Edit
                   </button>
                   <button
                     onClick={() => deleteTodo(todo.id)}
-                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 active:bg-red-700 transition-colors"
+                    className="px-4 py-2 rounded-xl bg-red-500/90 text-black hover:bg-red-500 transition-colors border border-white/30"
                   >
                     Delete
                   </button>
@@ -250,19 +323,52 @@ export default function TodoList() {
 
       {/* Task Counter */}
       {todos.length > 0 && (
-        <div className="text-center text-gray-600 pt-4 border-t">
+        <div className="text-center text-black/60 pt-4 border-t border-white/30">
           {todos.filter(todo => !todo.completed).length} tasks remaining
         </div>
       )}
       {todos.some(todo => todo.completed) && (
         <button 
           onClick={clearCompleted}
-          className="w-full mt-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+          className="w-full mt-2 px-4 py-2 rounded-xl bg-white/20 text-black hover:bg-white/30 transition-colors border border-white/30"
         >
           Clear Completed
         </button>
       )}
-
+      {archivedTodos.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-lg font-semibold text-black mb-3 tracking-tight">Completed Items ✅</h2>
+          <div className="space-y-2">
+            {archivedTodos.map(todo => (
+              <div
+                key={todo.id}
+                className="flex items-center gap-3 p-4 rounded-2xl border border-white/30 bg-white/10 backdrop-blur-xl"
+              >
+                <div className="flex-1">
+                  <div className="text-black">{todo.text}</div>
+                  {todo.dueAt && (
+                    <div className="text-sm text-black/50">Due: {formatDue(todo.dueAt)}</div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => restoreArchived(todo.id)}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-400 to-fuchsia-500 text-black font-semibold shadow hover:from-cyan-300 hover:to-fuchsia-400 transition-colors"
+                  >
+                    Re-add
+                  </button>
+                  <button
+                    onClick={() => deleteArchived(todo.id)}
+                    className="px-4 py-2 rounded-xl bg-red-500/90 text-black hover:bg-red-500 transition-colors border border-white/30"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
